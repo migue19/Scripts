@@ -2,25 +2,23 @@
 set -euo pipefail
 
 usage() {
-  cat <<EOF
-Uso: $0 [-c] [-o salida.csv] [-x PATRON]... <DIR_A> <DIR_B>
-
-Compara diferencias entre DIR_A y DIR_B usando rsync --dry-run (sin copiar).
-Agrupa en:
-  • Solo en A
-  • Solo en B
-  • Difieren (mismo path; distinto contenido/metadatos)
-
-Opciones:
-  -c                Usa --checksum (más exacto; más lento).
-  -o salida.csv     Exporta también a CSV (UTF-8) con: status,path,size_in_A,size_in_B.
-  -x PATRON         Excluir patrón (se puede repetir). Ej: -x 'node_modules/' -x '*.tmp'
-                    Se pasa tal cual a rsync --exclude=PATRON
-
-Ejemplos:
-  $0 dirA dirB
-  $0 -c -o diff.csv -x 'node_modules/' -x '*.log' dirA dirB
-EOF
+  echo "Uso: $0 [-c] [-o salida.csv] [-x PATRON]... <DIR_A> <DIR_B>"
+  echo
+  echo "Compara diferencias entre DIR_A y DIR_B usando rsync --dry-run (sin copiar)."
+  echo "Agrupa en:"
+  echo "  • Solo en A"
+  echo "  • Solo en B"
+  echo "  • Difieren (mismo path; distinto contenido/metadatos)"
+  echo
+  echo "Opciones:"
+  echo "  -c                Usa --checksum (más exacto; más lento)."
+  echo "  -o salida.csv     Exporta también a CSV (UTF-8): status,path,size_in_A,size_in_B."
+  echo "  -x PATRON         Excluir patrón (repetible). Ej: -x 'node_modules/' -x '*.tmp'"
+  echo "                    (se pasa tal cual a rsync --exclude)"
+  echo
+  echo "Ejemplos:"
+  echo "  $0 dirA dirB"
+  echo "  $0 -c -o diff.csv -x 'node_modules/' -x '*.log' dirA dirB"
   exit 1
 }
 
@@ -35,7 +33,7 @@ while getopts ":co:x:" opt; do
     o) CSV_OUT="$OPTARG" ;;
     x) EXCLUDES+=("$OPTARG") ;;
     *) usage ;;
-  endac
+  esac
 done
 shift $((OPTIND-1))
 
@@ -61,11 +59,11 @@ declare -a ONLY_A=()
 declare -a ONLY_B=()
 declare -a DIFF=()
 
-# Función portable para tamaño
+# Tamaño portable
 get_size() {
   local f="$1"
   if [ -d "$f" ]; then
-    echo ""   # sin tamaño para carpetas
+    echo ""
     return 0
   fi
   if stat -f%z "$f" >/dev/null 2>&1; then
@@ -100,7 +98,7 @@ while IFS= read -r line; do
   fi
 done < <(rsync "${RSYNC_OPTS[@]}" "$DIR_A" "$DIR_B")
 
-# --- Impresión legible en consola ---
+# Impresión
 print_section() {
   local title="$1"; shift
   local -a arr=("$@")
@@ -117,9 +115,8 @@ print_section "Solo en A (se copiarían a B)" "${ONLY_A[@]}"
 print_section "Solo en B (se borrarían en B si sincronizas desde A)" "${ONLY_B[@]}"
 print_section "Difieren (se actualizarían en B desde A)" "${DIFF[@]}"
 
-# --- CSV opcional ---
+# CSV opcional
 if [[ -n "$CSV_OUT" ]]; then
-  # Escapado CSV sencillo: comillas dobles si contiene comas o comillas
   csv_escape() {
     local s="$1"
     if [[ "$s" == *'"'* || "$s" == *','* ]]; then
@@ -132,26 +129,18 @@ if [[ -n "$CSV_OUT" ]]; then
 
   {
     echo "status,path,size_in_A,size_in_B"
-
     for p in "${ONLY_A[@]}"; do
       sa="$(get_size "${DIR_A}${p}")"
-      sb=""
-      printf '%s,%s,%s,%s\n' \
-        "ONLY_A" "$(csv_escape "$p")" "$(csv_escape "$sa")" "$(csv_escape "$sb")"
+      printf '%s,%s,%s,%s\n' "ONLY_A" "$(csv_escape "$p")" "$(csv_escape "$sa")" ""
     done
-
     for p in "${ONLY_B[@]}"; do
-      sa=""
       sb="$(get_size "${DIR_B}${p}")"
-      printf '%s,%s,%s,%s\n' \
-        "ONLY_B" "$(csv_escape "$p")" "$(csv_escape "$sa")" "$(csv_escape "$sb")"
+      printf '%s,%s,%s,%s\n' "ONLY_B" "$(csv_escape "$p")" "" "$(csv_escape "$sb")"
     done
-
     for p in "${DIFF[@]}"; do
       sa="$(get_size "${DIR_A}${p}")"
       sb="$(get_size "${DIR_B}${p}")"
-      printf '%s,%s,%s,%s\n' \
-        "DIFF" "$(csv_escape "$p")" "$(csv_escape "$sa")" "$(csv_escape "$sb")"
+      printf '%s,%s,%s,%s\n' "DIFF" "$(csv_escape "$p")" "$(csv_escape "$sa")" "$(csv_escape "$sb")"
     done
   } > "$CSV_OUT"
 
