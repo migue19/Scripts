@@ -62,16 +62,29 @@ declare -a DIFF=()
 # Tamaño portable
 get_size() {
   local f="$1"
+
+  # Si es carpeta → sin tamaño
   if [ -d "$f" ]; then
     echo ""
     return 0
   fi
+
+  # macOS (BSD stat)
   if stat -f%z "$f" >/dev/null 2>&1; then
-    stat -f%z "$f"    # macOS/BSD
-  else
-    stat -c%s "$f"    # GNU/Linux
+    stat -f%z "$f"
+    return 0
   fi
+
+  # Linux (GNU stat)
+  if stat -c%s "$f" >/dev/null 2>&1; then
+    stat -c%s "$f"
+    return 0
+  fi
+
+  # Si falla en ambos
+  echo "?"
 }
+
 
 # Ejecuta y parsea salida itemizada de rsync
 while IFS= read -r line; do
@@ -111,9 +124,9 @@ print_section() {
   echo
 }
 
-print_section "Solo en A (se copiarían a B)" "${ONLY_A[@]}"
-print_section "Solo en B (se borrarían en B si sincronizas desde A)" "${ONLY_B[@]}"
-print_section "Difieren (se actualizarían en B desde A)" "${DIFF[@]}"
+print_section "Solo en A (se copiarían a B)" "${ONLY_A[@]:-}"
+print_section "Solo en B (se borrarían en B si sincronizas desde A)" "${ONLY_B[@]:-}"
+print_section "Difieren (se actualizarían en B desde A)" "${DIFF[@]:-}"
 
 # CSV opcional
 if [[ -n "$CSV_OUT" ]]; then
@@ -148,7 +161,7 @@ if [[ -n "$CSV_OUT" ]]; then
 fi
 
 # Exit code: 0 sin diferencias; 1 si hubo diferencias
-if (( ${#ONLY_A[@]} + ${#ONLY_B[@]} + ${#DIFF[@]} > 0 )); then
+if (( ${#ONLY_A[@]:-0} + ${#ONLY_B[@]:-0} + ${#DIFF[@]:-0} > 0 )); then
   exit 1
 else
   exit 0
